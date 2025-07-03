@@ -22,7 +22,9 @@ for file, columns in [
     (PENDING_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes']),
     (BLOCKED_FILE, ['Start', 'End'])
 ]:
-    if not os.path.exists(file):
+    try:
+        pd.read_csv(file)
+    except:
         pd.DataFrame(columns=columns).to_csv(file, index=False)
 
 def load_bookings(file, date_cols):
@@ -51,6 +53,7 @@ def check_admin_login():
         return False
     return True
 
+# Load Data
 bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
 pending = load_bookings(PENDING_FILE, ['Check-in', 'Check-out'])
 blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
@@ -58,10 +61,10 @@ blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
 st.set_page_config(page_title="Booking Calendar", layout="centered")
 st.header("23 Logan's Beach Availability Calendar")
 
+# Navigation
 page = st.sidebar.radio("Navigate", [
     "View Calendar", 
     "Make a Booking Request", 
-    "Gallery",
     "Admin - Approve Requests"
 ])
 
@@ -102,7 +105,7 @@ if page == "View Calendar":
 
 # Booking Request
 elif page == "Make a Booking Request":
-    st.header("📝 Booking Request Form")
+    st.header("\U0001F4DD Booking Request Form")
 
     with st.form("booking_form"):
         name = st.text_input("Name")
@@ -152,7 +155,7 @@ elif page == "Make a Booking Request":
                         send_booking_notification(name, email, check_in, check_out, notes)
                         st.success("Your booking request has been submitted!")
 
-# Admin Section
+# Admin Panel
 elif page == "Admin - Approve Requests":
     st.header("🔔 Pending Booking Requests (Admin Only)")
 
@@ -171,16 +174,14 @@ elif page == "Admin - Approve Requests":
                 st.write(f"**Notes:** {row['Notes']}")
                 col1, col2 = st.columns(2)
                 if col1.button(f"✅ Approve Booking {idx}"):
-                    # RELOAD the bookings before appending to prevent overwriting
-                    bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
-                    updated_bookings = pd.concat([bookings, pd.DataFrame([row])], ignore_index=True)
+                    current_bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
+                    updated_bookings = pd.concat([current_bookings, pd.DataFrame([row])], ignore_index=True)
                     updated_bookings.to_csv(BOOKINGS_FILE, index=False, date_format='%Y-%m-%d')
                     pending.drop(index=idx, inplace=True)
                     pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
                     bookings = updated_bookings
                     st.success("Booking approved and added to calendar!")
                     st.rerun()
-
                 if col2.button(f"❌ Delete Booking {idx}"):
                     pending.drop(index=idx, inplace=True)
                     pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
@@ -200,7 +201,7 @@ elif page == "Admin - Approve Requests":
                 else:
                     st.write(f"**{row['Name']}**: (Incomplete date info)")
                 if pd.notna(row["Notes"]):
-                    st.caption(f"📜 {row['Notes']}")
+                    st.caption(f"📝 {row['Notes']}")
 
         if st.button("📄 Download PDF"):
             pdf = FPDF()
