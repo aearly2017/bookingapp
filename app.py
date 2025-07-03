@@ -8,7 +8,6 @@ from fpdf import FPDF
 import tempfile
 import os
 import shutil
-from streamlit.components.v1 import html
 
 # ---------------- Setup ---------------- #
 logo = Image.open("favicon.png")
@@ -71,8 +70,7 @@ st.header("23 Logan's Beach Availability Calendar")
 page = st.sidebar.radio("Navigate", [
     "View Calendar",
     "Make a Booking Request",
-    "Admin - Approve Requests",
-    "Gallery"
+    "Admin - Approve Requests"
 ])
 
 # ---------------- View Calendar ---------------- #
@@ -244,31 +242,3 @@ elif page == "Admin - Approve Requests":
                     file_name="booking_summary.pdf",
                     mime="application/pdf"
                 )
-
-# ---------------- Gallery ---------------- #
-elif page == "Gallery":
-    st.header("🏡 Logan's Beach Photo Gallery")
-    image_folder = "images"
-    if os.path.isdir(image_folder):
-        image_files = [f for f in os.listdir(image_folder) if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))]
-        image_tags = "".join([
-            f'<div class="swiper-slide"><img src="images/{img}" style="width:100%;border-radius:10px;cursor:pointer;" onclick="this.requestFullscreen();"/></div>'
-            for img in image_files
-        ])
-
-        html(f'''
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
-        <style>.swiper{{width:100%;height:500px;}}.swiper-slide img{{object-fit:cover;height:100%;}}</style>
-        <div class="swiper">
-          <div class="swiper-wrapper">{image_tags}</div>
-          <div class="swiper-pagination"></div>
-          <div class="swiper-button-prev"></div>
-          <div class="swiper-button-next"></div>
-        </div>
-        <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-        <script>
-        new Swiper('.swiper', {{loop:true,pagination:{{el:'.swiper-pagination'}},navigation:{{nextEl:'.swiper-button-next',prevEl:'.swiper-button-prev'}}}});
-        </script>
-        ''', height=550)
-    else:
-        st.warning("No image folder found. Please ensure 'images' exists.")
