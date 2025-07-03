@@ -2,17 +2,19 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from streamlit_calendar import calendar
-from email_utils import send_booking_notification  # assumes you have this
+from email_utils import send_booking_notification
 from PIL import Image
+from fpdf import FPDF
+import tempfile
 
-logo = Image.open("favicon.png")  # or use "loganbeach.png" if renamed
+logo = Image.open("favicon.png")
 st.sidebar.image(logo, use_container_width=True)
 
 BOOKINGS_FILE = 'bookings.csv'
 PENDING_FILE = 'pending_bookings.csv'
 BLOCKED_FILE = 'blocked_dates.csv'
 
-# ---------- Ensure CSVs Exist ----------
+# Ensure CSVs Exist
 for file, columns in [
     (BOOKINGS_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes']),
     (PENDING_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes']),
@@ -23,7 +25,6 @@ for file, columns in [
     except:
         pd.DataFrame(columns=columns).to_csv(file, index=False)
 
-# ---------- Load Bookings Function ----------
 def load_bookings(file, date_cols):
     df = pd.read_csv(file)
     df.columns = df.columns.str.strip()
@@ -31,7 +32,7 @@ def load_bookings(file, date_cols):
         df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
     return df
 
-# ---------- Admin Login ----------
+# Admin Login
 def check_admin_login():
     if "admin_logged_in" not in st.session_state:
         st.session_state["admin_logged_in"] = False
@@ -41,7 +42,7 @@ def check_admin_login():
             pw = st.text_input("Admin Password", type="password")
             submitted = st.form_submit_button("Login")
             if submitted:
-                if pw == "pineapple23":  # CHANGE THIS
+                if pw == st.secrets["admin"]["password"]:
                     st.session_state["admin_logged_in"] = True
                     st.success("Access granted.")
                     st.rerun()
@@ -50,7 +51,7 @@ def check_admin_login():
         return False
     return True
 
-# ---------- Load Data ----------
+# Load Data
 bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
 pending = load_bookings(PENDING_FILE, ['Check-in', 'Check-out'])
 blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
@@ -58,13 +59,11 @@ blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
 st.set_page_config(page_title="Booking Calendar", layout="centered")
 st.header("23 Logan's Beach Availability Calendar")
 
-# ---------- NAVIGATION ----------
 page = st.sidebar.radio("Navigate", ["View Calendar", "Make a Booking Request", "Admin - Approve Requests"])
 
-# ---------- VIEW CALENDAR ----------
+# View Calendar
 if page == "View Calendar":
     st.markdown("Availability Calendar - Please complete a booking request to apply")
-
     calendar_events = []
 
     for _, row in bookings.iterrows():
@@ -94,27 +93,21 @@ if page == "View Calendar":
                 "color": "gray"
             })
 
-    calendar_options = {
-        "initialView": "dayGridMonth",
-        "height": 600
-    }
-
+    calendar_options = {"initialView": "dayGridMonth", "height": 600}
     calendar(events=calendar_events, options=calendar_options)
 
-# ---------- MAKE BOOKING REQUEST ----------
+# Booking Request
 elif page == "Make a Booking Request":
     st.header("📝 Booking Request Form")
 
     with st.form("booking_form"):
         name = st.text_input("Name")
         email = st.text_input("Email")
-
         date_range = st.date_input(
             "Select your stay (Check-in and Check-out)",
             min_value=date.today(),
             value=(date.today(), date.today() + pd.Timedelta(days=1))
         )
-
         notes = st.text_area("Special Requests / Notes")
         submit = st.form_submit_button("Submit Request")
 
@@ -151,15 +144,11 @@ elif page == "Make a Booking Request":
                         })
 
                         pending = pd.concat([pending, new_request], ignore_index=True)
-                        pending['Check-in'] = pd.to_datetime(pending['Check-in'])
-                        pending['Check-out'] = pd.to_datetime(pending['Check-out'])
-
                         pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
                         send_booking_notification(name, email, check_in, check_out, notes)
-
                         st.success("Your booking request has been submitted!")
 
-# ---------- ADMIN PAGE ----------
+# Admin Section
 elif page == "Admin - Approve Requests":
     st.header("🔔 Pending Booking Requests (Admin Only)")
 
@@ -176,24 +165,23 @@ elif page == "Admin - Approve Requests":
             with st.expander(f"{row['Name']} - {check_in_str} to {check_out_str}"):
                 st.write(f"**Email:** {row['Email']}")
                 st.write(f"**Notes:** {row['Notes']}")
-                if st.button(f"✅ Approve Booking {idx}"):
+                col1, col2 = st.columns(2)
+                if col1.button(f"✅ Approve Booking {idx}"):
                     bookings = pd.concat([bookings, pd.DataFrame([row])], ignore_index=True)
                     bookings.to_csv(BOOKINGS_FILE, index=False, date_format='%Y-%m-%d')
-
                     pending.drop(index=idx, inplace=True)
                     pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
-
                     bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
-
                     st.success("Booking approved and added to calendar!")
                     st.rerun()
+                if col2.button(f"❌ Delete Booking {idx}"):
+                    pending.drop(index=idx, inplace=True)
+                    pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
+                    st.warning("Booking request deleted.")
+                    st.rerun()
 
-    # ---------- PRINTABLE BOOKINGS PDF ----------
     st.markdown("---")
     st.subheader("🖨️ Printable Booking Summary")
-
-    from fpdf import FPDF
-    import tempfile
 
     if bookings.empty:
         st.info("No confirmed bookings yet.")
