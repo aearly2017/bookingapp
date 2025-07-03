@@ -7,8 +7,9 @@ from PIL import Image
 from fpdf import FPDF
 import tempfile
 import os
-from streamlit.components.v1 import html
+import shutil
 
+# ---------------- Setup ---------------- #
 logo = Image.open("favicon.png")
 st.sidebar.image(logo, use_container_width=True)
 
@@ -16,25 +17,33 @@ BOOKINGS_FILE = 'bookings.csv'
 PENDING_FILE = 'pending_bookings.csv'
 BLOCKED_FILE = 'blocked_dates.csv'
 
-# Ensure CSVs Exist
-for file, columns in [
-    (BOOKINGS_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes']),
-    (PENDING_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes']),
-    (BLOCKED_FILE, ['Start', 'End'])
-]:
-    try:
-        pd.read_csv(file)
-    except:
+# ---------------- Backup Function ---------------- #
+def backup_file(file_path):
+    if os.path.exists(file_path):
+        shutil.copy(file_path, file_path + ".bak")
+
+# ---------------- Ensure CSVs Exist ---------------- #
+def ensure_csv(file, columns):
+    if not os.path.exists(file):
         pd.DataFrame(columns=columns).to_csv(file, index=False)
 
+ensure_csv(BOOKINGS_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes'])
+ensure_csv(PENDING_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes'])
+ensure_csv(BLOCKED_FILE, ['Start', 'End'])
+
+# ---------------- Load CSV with Dates ---------------- #
 def load_bookings(file, date_cols):
     df = pd.read_csv(file)
     df.columns = df.columns.str.strip()
     for col in date_cols:
-        df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
+        df[col] = pd.to_datetime(df[col], errors='coerce')
     return df
 
-# Admin Login
+bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
+pending = load_bookings(PENDING_FILE, ['Check-in', 'Check-out'])
+blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
+
+# ---------------- Admin Login ---------------- #
 def check_admin_login():
     if "admin_logged_in" not in st.session_state:
         st.session_state["admin_logged_in"] = False
@@ -53,29 +62,21 @@ def check_admin_login():
         return False
     return True
 
-# Load Data
-bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
-pending = load_bookings(PENDING_FILE, ['Check-in', 'Check-out'])
-blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
-
+# ---------------- Streamlit Page Config ---------------- #
 st.set_page_config(page_title="Booking Calendar", layout="centered")
 st.header("23 Logan's Beach Availability Calendar")
 
-# Navigation
+# ---------------- Navigation ---------------- #
 page = st.sidebar.radio("Navigate", [
-    "View Calendar", 
-    "Make a Booking Request", 
+    "View Calendar",
+    "Make a Booking Request",
     "Admin - Approve Requests"
 ])
 
-# View Calendar
+# ---------------- View Calendar ---------------- #
 if page == "View Calendar":
     st.markdown("Availability Calendar - Please complete a booking request to apply")
     calendar_events = []
-
-    bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])  # reload for safety
-    pending = load_bookings(PENDING_FILE, ['Check-in', 'Check-out'])
-    blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
 
     for _, row in bookings.iterrows():
         if pd.notna(row['Check-in']) and pd.notna(row['Check-out']):
@@ -107,18 +108,16 @@ if page == "View Calendar":
     calendar_options = {"initialView": "dayGridMonth", "height": 600}
     calendar(events=calendar_events, options=calendar_options)
 
-# Booking Request
+# ---------------- Make Booking Request ---------------- #
 elif page == "Make a Booking Request":
     st.header("📝 Booking Request Form")
 
     with st.form("booking_form"):
         name = st.text_input("Name")
         email = st.text_input("Email")
-        date_range = st.date_input(
-            "Select your stay (Check-in and Check-out)",
-            min_value=date.today(),
-            value=(date.today(), date.today() + pd.Timedelta(days=1))
-        )
+        date_range = st.date_input("Select your stay (Check-in and Check-out)",
+                                   min_value=date.today(),
+                                   value=(date.today(), date.today() + pd.Timedelta(days=1)))
         notes = st.text_area("Special Requests / Notes")
         submit = st.form_submit_button("Submit Request")
 
@@ -154,12 +153,13 @@ elif page == "Make a Booking Request":
                             'Notes': [notes]
                         })
 
+                        backup_file(PENDING_FILE)
                         pending = pd.concat([pending, new_request], ignore_index=True)
                         pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
                         send_booking_notification(name, email, check_in, check_out, notes)
                         st.success("Your booking request has been submitted!")
 
-# Admin Panel
+# ---------------- Admin Panel ---------------- #
 elif page == "Admin - Approve Requests":
     st.header("🔔 Pending Booking Requests (Admin Only)")
 
@@ -178,18 +178,23 @@ elif page == "Admin - Approve Requests":
                 st.write(f"**Notes:** {row['Notes']}")
                 col1, col2 = st.columns(2)
                 if col1.button(f"✅ Approve Booking {idx}"):
-                    # Reload bookings to prevent overwrite
-                    current_bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
-                    current_bookings = pd.concat([current_bookings, pd.DataFrame([row])], ignore_index=True)
-                    current_bookings.to_csv(BOOKINGS_FILE, index=False, date_format='%Y-%m-%d')
+                    backup_file(BOOKINGS_FILE)
+                    bookings = pd.concat([bookings, pd.DataFrame([row])], ignore_index=True)
+                    bookings.to_csv(BOOKINGS_FILE, index=False, date_format='%Y-%m-%d')
 
+                    backup_file(PENDING_FILE)
                     pending.drop(index=idx, inplace=True)
+                    pending.reset_index(drop=True, inplace=True)
                     pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
+
+                    bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
+                    pending = load_bookings(PENDING_FILE, ['Check-in', 'Check-out'])
 
                     st.success("Booking approved and added to calendar!")
                     st.rerun()
                 if col2.button(f"❌ Delete Booking {idx}"):
                     pending.drop(index=idx, inplace=True)
+                    pending.reset_index(drop=True, inplace=True)
                     pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
                     st.warning("Booking request deleted.")
                     st.rerun()
