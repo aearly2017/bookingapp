@@ -1,14 +1,15 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import streamlit as st
 
-# -------- Gmail SMTP config --------
+# -------- Gmail SMTP config from Streamlit secrets --------
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-EMAIL_ADDRESS = "logansbeachlookout@gmail.com"        # <-- Your new Gmail address
-EMAIL_PASSWORD = "foru ucev gyty gizi"              # <-- Your Gmail App Password
-NOTIFY_EMAIL_TO = "logansbeachlookout@gmail.com"       # <-- Where notifications should go
-# -----------------------------------
+EMAIL_ADDRESS = st.secrets["email"]["address"]
+EMAIL_PASSWORD = st.secrets["email"]["password"]
+NOTIFY_EMAIL_TO = st.secrets["email"]["notify_to"]
+# ----------------------------------------------------------
 
 def send_booking_notification(name, email, check_in, check_out, notes):
     subject = "New Booking Request Received"
