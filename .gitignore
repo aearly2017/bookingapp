@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+.venv/
+venv/
+ENV/
+env/
+
+# VS Code and other IDEs
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Streamlit config and secrets
+.streamlit/config.toml
+.streamlit/credentials.toml
+.streamlit/secrets.toml
+
+# Local data files
+*.csv
+*.xlsx
+*.pdf
+*.db
+
+# Temp and backup files
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Python build artifacts
+*.egg-info/
+*.egg
+dist/
+build/
+
+#booking files 
+bookings.csv
+pending_bookings.csv
+blocked_dates.csv
