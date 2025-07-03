@@ -7,6 +7,7 @@ from PIL import Image
 from fpdf import FPDF
 import tempfile
 import os
+from streamlit.components.v1 import html
 
 logo = Image.open("favicon.png")
 st.sidebar.image(logo, use_container_width=True)
@@ -21,9 +22,7 @@ for file, columns in [
     (PENDING_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes']),
     (BLOCKED_FILE, ['Start', 'End'])
 ]:
-    try:
-        pd.read_csv(file)
-    except:
+    if not os.path.exists(file):
         pd.DataFrame(columns=columns).to_csv(file, index=False)
 
 def load_bookings(file, date_cols):
@@ -52,7 +51,6 @@ def check_admin_login():
         return False
     return True
 
-# Load Data
 bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
 pending = load_bookings(PENDING_FILE, ['Check-in', 'Check-out'])
 blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
@@ -60,12 +58,11 @@ blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
 st.set_page_config(page_title="Booking Calendar", layout="centered")
 st.header("23 Logan's Beach Availability Calendar")
 
-# Navigation
 page = st.sidebar.radio("Navigate", [
     "View Calendar", 
     "Make a Booking Request", 
     "Gallery",
-    "Admin - Approve Requests" 
+    "Admin - Approve Requests"
 ])
 
 # View Calendar
@@ -155,41 +152,7 @@ elif page == "Make a Booking Request":
                         send_booking_notification(name, email, check_in, check_out, notes)
                         st.success("Your booking request has been submitted!")
 
-# GALLERY TAB
-elif page == "Gallery":
-    st.header("🏡 Logan's Beach Road Gallery")
-    st.caption("Click through photos")
-
-    image_folder = "images"
-    image_files = sorted([
-        f for f in os.listdir(image_folder)
-        if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))
-    ])
-
-    if image_files:
-        if "gallery_index" not in st.session_state:
-            st.session_state.gallery_index = 0
-
-        col1, col2, col3 = st.columns([1, 6, 1])
-
-        with col1:
-            if st.button("⬅️"):
-                st.session_state.gallery_index -= 1
-                if st.session_state.gallery_index < 0:
-                    st.session_state.gallery_index = len(image_files) - 1
-
-        with col3:
-            if st.button("➡️"):
-                st.session_state.gallery_index += 1
-                if st.session_state.gallery_index >= len(image_files):
-                    st.session_state.gallery_index = 0
-
-        image_path = os.path.join(image_folder, image_files[st.session_state.gallery_index])
-        st.image(image_path, use_container_width=True, caption=f"{st.session_state.gallery_index + 1} of {len(image_files)}")
-    else:
-        st.info("No images found in the `images/` folder.")
-
-# Admin Panel
+# Admin Section
 elif page == "Admin - Approve Requests":
     st.header("🔔 Pending Booking Requests (Admin Only)")
 
@@ -208,13 +171,16 @@ elif page == "Admin - Approve Requests":
                 st.write(f"**Notes:** {row['Notes']}")
                 col1, col2 = st.columns(2)
                 if col1.button(f"✅ Approve Booking {idx}"):
-                    bookings = pd.concat([bookings, pd.DataFrame([row])], ignore_index=True)
-                    bookings.to_csv(BOOKINGS_FILE, index=False, date_format='%Y-%m-%d')
+                    # RELOAD the bookings before appending to prevent overwriting
+                    bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
+                    updated_bookings = pd.concat([bookings, pd.DataFrame([row])], ignore_index=True)
+                    updated_bookings.to_csv(BOOKINGS_FILE, index=False, date_format='%Y-%m-%d')
                     pending.drop(index=idx, inplace=True)
                     pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
-                    bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
+                    bookings = updated_bookings
                     st.success("Booking approved and added to calendar!")
                     st.rerun()
+
                 if col2.button(f"❌ Delete Booking {idx}"):
                     pending.drop(index=idx, inplace=True)
                     pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
@@ -234,7 +200,7 @@ elif page == "Admin - Approve Requests":
                 else:
                     st.write(f"**{row['Name']}**: (Incomplete date info)")
                 if pd.notna(row["Notes"]):
-                    st.caption(f"📝 {row['Notes']}")
+                    st.caption(f"📜 {row['Notes']}")
 
         if st.button("📄 Download PDF"):
             pdf = FPDF()
