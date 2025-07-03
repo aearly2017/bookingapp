@@ -6,6 +6,8 @@ from email_utils import send_booking_notification
 from PIL import Image
 from fpdf import FPDF
 import tempfile
+import os
+from streamlit.components.v1 import html
 
 logo = Image.open("favicon.png")
 st.sidebar.image(logo, use_container_width=True)
@@ -59,7 +61,13 @@ blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
 st.set_page_config(page_title="Booking Calendar", layout="centered")
 st.header("23 Logan's Beach Availability Calendar")
 
-page = st.sidebar.radio("Navigate", ["View Calendar", "Make a Booking Request", "Admin - Approve Requests"])
+# Navigation
+page = st.sidebar.radio("Navigate", [
+    "View Calendar", 
+    "Make a Booking Request", 
+    "Admin - Approve Requests", 
+    "Gallery"
+])
 
 # View Calendar
 if page == "View Calendar":
@@ -148,7 +156,7 @@ elif page == "Make a Booking Request":
                         send_booking_notification(name, email, check_in, check_out, notes)
                         st.success("Your booking request has been submitted!")
 
-# Admin Section
+# Admin Panel
 elif page == "Admin - Approve Requests":
     st.header("🔔 Pending Booking Requests (Admin Only)")
 
@@ -223,3 +231,45 @@ elif page == "Admin - Approve Requests":
                     file_name="booking_summary.pdf",
                     mime="application/pdf"
                 )
+
+# GALLERY TAB
+elif page == "Gallery":
+    st.header("🏡 House Photo Gallery")
+
+    image_folder = "images"
+    image_files = [
+        f for f in os.listdir(image_folder)
+        if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))
+    ]
+
+    if image_files:
+        image_tags = ""
+        for f in image_files:
+            image_tags += f'<div class="swiper-slide"><img src="images/{f}" style="width:100%; border-radius:10px;" /></div>'
+
+        swiper_html = f"""
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+        <div class="swiper">
+            <div class="swiper-wrapper">
+                {image_tags}
+            </div>
+            <div class="swiper-pagination"></div>
+            <div class="swiper-button-prev"></div>
+            <div class="swiper-button-next"></div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+        <script>
+            const swiper = new Swiper('.swiper', {{
+                loop: true,
+                pagination: {{ el: '.swiper-pagination' }},
+                navigation: {{
+                    nextEl: '.swiper-button-next',
+                    prevEl: '.swiper-button-prev',
+                }},
+            }});
+        </script>
+        """
+
+        html(swiper_html, height=500)
+    else:
+        st.info("No images found in the `images/` folder.")
