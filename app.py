@@ -1,237 +1,175 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
-from streamlit_calendar import calendar
-from email_utils import send_booking_notification  # assumes you have this
-from PIL import Image
+import os
+from datetime import datetime, timedelta
+from fpdf import FPDF
 
-logo = Image.open("favicon.png")  # or use "loganbeach.png" if renamed
-st.sidebar.image(logo, use_container_width=True)
+# --- FILE PATHS ---
+APPROVED_FILE = "bookings.csv"
+PENDING_FILE = "pending_bookings.csv"
 
-BOOKINGS_FILE = 'bookings.csv'
-PENDING_FILE = 'pending_bookings.csv'
-BLOCKED_FILE = 'blocked_dates.csv'
+# --- PAGE SETUP ---
+st.set_page_config(page_title="Logan's Beach Booking", page_icon="🏠", layout="centered")
 
-# ---------- Ensure CSVs Exist ----------
-for file, columns in [
-    (BOOKINGS_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes']),
-    (PENDING_FILE, ['Name', 'Email', 'Check-in', 'Check-out', 'Notes']),
-    (BLOCKED_FILE, ['Start', 'End'])
-]:
-    try:
-        pd.read_csv(file)
-    except:
-        pd.DataFrame(columns=columns).to_csv(file, index=False)
+# --- SIDEBAR IMAGE ---
+st.sidebar.image("favicon.png", use_container_width=True)
+st.sidebar.title("Logan's Beach Booking App")
 
-# ---------- Load Bookings Function ----------
-def load_bookings(file, date_cols):
-    df = pd.read_csv(file)
-    df.columns = df.columns.str.strip()
-    for col in date_cols:
-        df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
-    return df
+st.title("🏡 House Booking Calendar & Request Form")
 
-# ---------- Admin Login ----------
-def check_admin_login():
-    if "admin_logged_in" not in st.session_state:
-        st.session_state["admin_logged_in"] = False
+# --- AUTHENTICATION ---
+ADMIN_PASSWORD = "admin123"  # Change this to something secure
 
-    if not st.session_state["admin_logged_in"]:
-        with st.form("admin_login_form"):
-            pw = st.text_input("Admin Password", type="password")
-            submitted = st.form_submit_button("Login")
-            if submitted:
-                if pw == "pineapple23":  # CHANGE THIS
-                    st.session_state["admin_logged_in"] = True
-                    st.success("Access granted.")
-                    st.rerun()
-                else:
-                    st.error("Incorrect password.")
-        return False
-    return True
+is_admin = False
+with st.sidebar:
+    with st.expander("🔐 Admin Login"):
+        admin_input = st.text_input("Enter admin password", type="password")
+        if admin_input == ADMIN_PASSWORD:
+            is_admin = True
+            st.success("Admin access granted!")
 
-# ---------- Load Data ----------
-bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
-pending = load_bookings(PENDING_FILE, ['Check-in', 'Check-out'])
-blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
-
-st.set_page_config(page_title="Booking Calendar", layout="centered")
-st.header("23 Logan's Beach Availability Calendar")
-
-# ---------- NAVIGATION ----------
-page = st.sidebar.radio("Navigate", ["View Calendar", "Make a Booking Request", "Admin - Approve Requests"])
-
-# ---------- VIEW CALENDAR ----------
-if page == "View Calendar":
-    st.markdown("Availability Calendar - Please complete a booking request to apply")
-
-    calendar_events = []
-
-    for _, row in bookings.iterrows():
-        if pd.notna(row['Check-in']) and pd.notna(row['Check-out']):
-            calendar_events.append({
-                "title": "Booked",
-                "start": row['Check-in'].strftime('%Y-%m-%d'),
-                "end": (row['Check-out'] + pd.Timedelta(days=1)).strftime('%Y-%m-%d'),
-                "color": "green"
-            })
-
-    for _, row in pending.iterrows():
-        if pd.notna(row['Check-in']) and pd.notna(row['Check-out']):
-            calendar_events.append({
-                "title": "Tentative",
-                "start": row['Check-in'].strftime('%Y-%m-%d'),
-                "end": (row['Check-out'] + pd.Timedelta(days=1)).strftime('%Y-%m-%d'),
-                "color": "orange"
-            })
-
-    for _, row in blocked.iterrows():
-        if pd.notna(row['Start']) and pd.notna(row['End']):
-            calendar_events.append({
-                "title": "Unavailable",
-                "start": row['Start'].strftime('%Y-%m-%d'),
-                "end": (row['End'] + pd.Timedelta(days=1)).strftime('%Y-%m-%d'),
-                "color": "gray"
-            })
-
-    calendar_options = {
-        "initialView": "dayGridMonth",
-        "height": 600
-    }
-
-    calendar(events=calendar_events, options=calendar_options)
-
-# ---------- MAKE BOOKING REQUEST ----------
-elif page == "Make a Booking Request":
-    st.header("📝 Booking Request Form")
-
-    with st.form("booking_form"):
-        name = st.text_input("Name")
-        email = st.text_input("Email")
-
-        date_range = st.date_input(
-            "Select your stay (Check-in and Check-out)",
-            min_value=date.today(),
-            value=(date.today(), date.today() + pd.Timedelta(days=1))
-        )
-
-        notes = st.text_area("Special Requests / Notes")
-        submit = st.form_submit_button("Submit Request")
-
-        if submit:
-            if isinstance(date_range, tuple) and len(date_range) == 2:
-                check_in = pd.to_datetime(date_range[0])
-                check_out = pd.to_datetime(date_range[1])
-
-                if check_out <= check_in:
-                    st.error("Check-out must be after check-in.")
-                else:
-                    conflict = False
-                    for df in [bookings, pending]:
-                        for _, row in df.iterrows():
-                            existing_start = row['Check-in']
-                            existing_end = row['Check-out']
-                            if pd.isna(existing_start) or pd.isna(existing_end):
-                                continue
-                            if check_in < existing_end and check_out > existing_start:
-                                conflict = True
-                                break
-                        if conflict:
-                            break
-
-                    if conflict:
-                        st.error("⚠️ These dates conflict with an existing booking or request.")
-                    else:
-                        new_request = pd.DataFrame({
-                            'Name': [name],
-                            'Email': [email],
-                            'Check-in': [check_in],
-                            'Check-out': [check_out],
-                            'Notes': [notes]
-                        })
-
-                        pending = pd.concat([pending, new_request], ignore_index=True)
-                        pending['Check-in'] = pd.to_datetime(pending['Check-in'])
-                        pending['Check-out'] = pd.to_datetime(pending['Check-out'])
-
-                        pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
-                        send_booking_notification(name, email, check_in, check_out, notes)
-
-                        st.success("Your booking request has been submitted!")
-
-# ---------- ADMIN PAGE ----------
-elif page == "Admin - Approve Requests":
-    st.header("🔔 Pending Booking Requests (Admin Only)")
-
-    if not check_admin_login():
-        st.stop()
-
-    if pending.empty:
-        st.info("No pending booking requests.")
+# --- LOAD BOOKINGS ---
+def load_bookings(file_path):
+    if os.path.exists(file_path):
+        return pd.read_csv(file_path, parse_dates=["Check-in", "Check-out"])
     else:
-        for idx, row in pending.iterrows():
-            check_in_str = row['Check-in'].strftime('%Y-%m-%d') if pd.notna(row['Check-in']) else 'Unknown'
-            check_out_str = row['Check-out'].strftime('%Y-%m-%d') if pd.notna(row['Check-out']) else 'Unknown'
+        return pd.DataFrame(columns=["Name", "Email", "Check-in", "Check-out", "Notes"])
 
-            with st.expander(f"{row['Name']} - {check_in_str} to {check_out_str}"):
+approved_df = load_bookings(APPROVED_FILE)
+pending_df = load_bookings(PENDING_FILE)
+
+# --- 📅 AVAILABILITY CALENDAR ---
+st.subheader("📅 Availability Calendar")
+
+year = st.selectbox("Select Year", list(range(datetime.now().year, datetime.now().year + 2)))
+month = st.selectbox("Select Month", list(range(1, 13)))
+
+# Get booked dates
+booked_dates = []
+for _, row in approved_df.iterrows():
+    start = row["Check-in"].date()
+    end = row["Check-out"].date()
+    delta = (end - start).days
+    for i in range(delta + 1):
+        booked_dates.append(start + timedelta(days=i))
+
+# Render calendar
+import calendar
+from calendar import monthcalendar
+
+cal = calendar.Calendar()
+month_matrix = cal.monthdayscalendar(year, month)
+
+st.markdown(f"#### Calendar for {calendar.month_name[month]} {year}")
+
+cal_html = "<table style='border-collapse: collapse;'><tr>"
+for day in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]:
+    cal_html += f"<th style='padding: 8px;'>{day}</th>"
+cal_html += "</tr>"
+
+for week in month_matrix:
+    cal_html += "<tr>"
+    for day in week:
+        date_str = f"{year}-{month:02}-{day:02}"
+        is_booked = datetime.strptime(date_str, "%Y-%m-%d").date() in booked_dates if day != 0 else False
+        cell_color = "#ffcccc" if is_booked else "#f2f2f2"
+        cal_html += (
+            f"<td style='border: 1px solid #ccc; padding: 8px; background-color:{cell_color}; text-align:center;'>"
+            + (str(day) if day != 0 else "")
+            + "</td>"
+        )
+    cal_html += "</tr>"
+cal_html += "</table>"
+
+st.markdown(cal_html, unsafe_allow_html=True)
+
+# --- ✏️ BOOKING FORM ---
+st.subheader("📝 Booking Request Form")
+with st.form("booking_form"):
+    name = st.text_input("Name")
+    email = st.text_input("Email")
+    checkin = st.date_input("Requested Check-in Date", min_value=datetime.now().date())
+    checkout = st.date_input("Requested Check-out Date", min_value=checkin + timedelta(days=1))
+    notes = st.text_area("Notes (optional)")
+    submitted = st.form_submit_button("Submit Request")
+
+    if submitted:
+        # Check for overlap with existing bookings
+        conflict = False
+        for _, row in approved_df.iterrows():
+            if (
+                pd.Timestamp(checkin) < row["Check-out"]
+                and pd.Timestamp(checkout) > row["Check-in"]
+            ):
+                conflict = True
+                break
+        if conflict:
+            st.error("Sorry, your requested dates overlap with an existing booking.")
+        else:
+            new_request = pd.DataFrame(
+                [[name, email, checkin, checkout, notes]],
+                columns=["Name", "Email", "Check-in", "Check-out", "Notes"]
+            )
+            pending_df = pd.concat([pending_df, new_request], ignore_index=True)
+            pending_df.to_csv(PENDING_FILE, index=False)
+            st.success("Your request has been submitted for approval!")
+
+# --- 👮 ADMIN VIEW ---
+if is_admin:
+    st.subheader("⚠️ Pending Booking Requests (Admin Only)")
+
+    if not pending_df.empty:
+        for index, row in pending_df.iterrows():
+            with st.expander(f"{row['Name']} - {row['Check-in'].date()} to {row['Check-out'].date()}"):
                 st.write(f"**Email:** {row['Email']}")
                 st.write(f"**Notes:** {row['Notes']}")
-                if st.button(f"✅ Approve Booking {idx}"):
-                    bookings = pd.concat([bookings, pd.DataFrame([row])], ignore_index=True)
-                    bookings.to_csv(BOOKINGS_FILE, index=False, date_format='%Y-%m-%d')
 
-                    pending.drop(index=idx, inplace=True)
-                    pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
-
-                    bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
-
-                    st.success("Booking approved and added to calendar!")
-                    st.rerun()
-
-    # ---------- PRINTABLE BOOKINGS PDF ----------
-    st.markdown("---")
-    st.subheader("🖨️ Printable Booking Summary")
-
-    from fpdf import FPDF
-    import tempfile
-
-    if bookings.empty:
-        st.info("No confirmed bookings yet.")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"✅ Approve Booking {index}", key=f"approve_{index}"):
+                        approved_df = pd.concat([approved_df, pd.DataFrame([row])], ignore_index=True)
+                        approved_df.to_csv(APPROVED_FILE, index=False)
+                        pending_df.drop(index=index, inplace=True)
+                        pending_df.to_csv(PENDING_FILE, index=False)
+                        st.success("Booking approved!")
+                        st.experimental_rerun()
+                with col2:
+                    if st.button(f"🗑️ Delete Pending {index}", key=f"delete_pending_{index}"):
+                        pending_df.drop(index=index, inplace=True)
+                        pending_df.to_csv(PENDING_FILE, index=False)
+                        st.warning("Pending booking deleted.")
+                        st.experimental_rerun()
     else:
-        with st.expander("📋 View All Confirmed Bookings"):
-            for _, row in bookings.iterrows():
-                if pd.notna(row['Check-in']) and pd.notna(row['Check-out']):
-                    st.write(f"**{row['Name']}**: {row['Check-in'].strftime('%Y-%m-%d')} → {row['Check-out'].strftime('%Y-%m-%d')}")
-                else:
-                    st.write(f"**{row['Name']}**: (Incomplete date info)")
-                if pd.notna(row["Notes"]):
-                    st.caption(f"📝 {row['Notes']}")
+        st.info("No pending bookings.")
 
-        if st.button("📄 Download PDF"):
+    # --- ✅ Confirmed Bookings View & Delete ---
+    st.subheader("✅ Confirmed Bookings")
+    if not approved_df.empty:
+        for index, row in approved_df.iterrows():
+            with st.expander(f"{row['Name']} - {row['Check-in'].date()} to {row['Check-out'].date()}"):
+                st.write(f"**Email:** {row['Email']}")
+                st.write(f"**Notes:** {row['Notes']}")
+                if st.button(f"🗑️ Delete Confirmed {index}", key=f"delete_confirmed_{index}"):
+                    approved_df.drop(index=index, inplace=True)
+                    approved_df.to_csv(APPROVED_FILE, index=False)
+                    st.warning("Confirmed booking deleted.")
+                    st.experimental_rerun()
+
+    # --- 📤 Export Bookings as PDF ---
+    st.subheader("📄 Export Confirmed Bookings to PDF")
+    if st.button("Generate PDF"):
+        if not approved_df.empty:
             pdf = FPDF()
             pdf.add_page()
+            pdf.set_font("Arial", "B", 16)
+            pdf.cell(200, 10, "Confirmed Bookings", ln=True, align="C")
             pdf.set_font("Arial", size=12)
-            pdf.cell(200, 10, txt="Booking Summary", ln=True, align='C')
-            pdf.ln(5)
 
-            for _, row in bookings.iterrows():
-                if pd.notna(row['Check-in']) and pd.notna(row['Check-out']):
-                    line = f"{row['Name']} | {row['Check-in'].strftime('%Y-%m-%d')} to {row['Check-out'].strftime('%Y-%m-%d')}"
-                else:
-                    line = f"{row['Name']} | (Incomplete date info)"
-                pdf.cell(200, 10, txt=line, ln=True)
-                if pd.notna(row["Notes"]):
-                    pdf.set_font("Arial", size=10)
-                    pdf.multi_cell(200, 8, txt=f"Note: {row['Notes']}")
-                    pdf.set_font("Arial", size=12)
-                pdf.ln(2)
+            for _, row in approved_df.iterrows():
+                pdf.cell(200, 10, f"{row['Name']}: {row['Check-in'].date()} → {row['Check-out'].date()}", ln=True)
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                pdf.output(tmp_file.name)
-                st.success("✅ PDF created!")
-                st.download_button(
-                    label="Download Booking Summary PDF",
-                    data=open(tmp_file.name, "rb").read(),
-                    file_name="booking_summary.pdf",
-                    mime="application/pdf"
-                )
+            pdf.output("confirmed_bookings.pdf")
+            with open("confirmed_bookings.pdf", "rb") as f:
+                st.download_button("Download PDF", f, file_name="confirmed_bookings.pdf")
+        else:
+            st.info("No confirmed bookings to export.")
