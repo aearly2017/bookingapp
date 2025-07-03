@@ -155,24 +155,39 @@ elif page == "Make a Booking Request":
                         send_booking_notification(name, email, check_in, check_out, notes)
                         st.success("Your booking request has been submitted!")
 
-# Gallery
+# GALLERY TAB
 elif page == "Gallery":
     st.header("🏡 Logan's Beach Road Gallery")
-    image_folder = "images"
-    try:
-        image_files = [
-            f for f in os.listdir(image_folder)
-            if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))
-        ]
+    st.caption("Click through photos")
 
-        if image_files:
-            selected_index = st.slider("Slide through photos", 0, len(image_files) - 1, 0)
-            image_path = os.path.join(image_folder, image_files[selected_index])
-            st.image(Image.open(image_path), use_column_width=True)
-        else:
-            st.info("No images found in the `images/` folder.")
-    except FileNotFoundError:
-        st.warning("Image folder not found. Make sure the 'images/' folder is in your app directory.")
+    image_folder = "images"
+    image_files = sorted([
+        f for f in os.listdir(image_folder)
+        if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))
+    ])
+
+    if image_files:
+        if "gallery_index" not in st.session_state:
+            st.session_state.gallery_index = 0
+
+        col1, col2, col3 = st.columns([1, 6, 1])
+
+        with col1:
+            if st.button("⬅️"):
+                st.session_state.gallery_index -= 1
+                if st.session_state.gallery_index < 0:
+                    st.session_state.gallery_index = len(image_files) - 1
+
+        with col3:
+            if st.button("➡️"):
+                st.session_state.gallery_index += 1
+                if st.session_state.gallery_index >= len(image_files):
+                    st.session_state.gallery_index = 0
+
+        image_path = os.path.join(image_folder, image_files[st.session_state.gallery_index])
+        st.image(image_path, use_container_width=True, caption=f"{st.session_state.gallery_index + 1} of {len(image_files)}")
+    else:
+        st.info("No images found in the `images/` folder.")
 
 # Admin Panel
 elif page == "Admin - Approve Requests":
