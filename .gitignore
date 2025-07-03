@@ -40,8 +40,3 @@ Thumbs.db
 *.egg
 dist/
 build/
-
-#booking files 
-bookings.csv
-pending_bookings.csv
-blocked_dates.csv
