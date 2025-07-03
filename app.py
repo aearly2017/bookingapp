@@ -73,6 +73,10 @@ if page == "View Calendar":
     st.markdown("Availability Calendar - Please complete a booking request to apply")
     calendar_events = []
 
+    bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])  # reload for safety
+    pending = load_bookings(PENDING_FILE, ['Check-in', 'Check-out'])
+    blocked = load_bookings(BLOCKED_FILE, ['Start', 'End'])
+
     for _, row in bookings.iterrows():
         if pd.notna(row['Check-in']) and pd.notna(row['Check-out']):
             calendar_events.append({
@@ -105,7 +109,7 @@ if page == "View Calendar":
 
 # Booking Request
 elif page == "Make a Booking Request":
-    st.header("\U0001F4DD Booking Request Form")
+    st.header("📝 Booking Request Form")
 
     with st.form("booking_form"):
         name = st.text_input("Name")
@@ -174,12 +178,14 @@ elif page == "Admin - Approve Requests":
                 st.write(f"**Notes:** {row['Notes']}")
                 col1, col2 = st.columns(2)
                 if col1.button(f"✅ Approve Booking {idx}"):
+                    # Reload bookings to prevent overwrite
                     current_bookings = load_bookings(BOOKINGS_FILE, ['Check-in', 'Check-out'])
-                    updated_bookings = pd.concat([current_bookings, pd.DataFrame([row])], ignore_index=True)
-                    updated_bookings.to_csv(BOOKINGS_FILE, index=False, date_format='%Y-%m-%d')
+                    current_bookings = pd.concat([current_bookings, pd.DataFrame([row])], ignore_index=True)
+                    current_bookings.to_csv(BOOKINGS_FILE, index=False, date_format='%Y-%m-%d')
+
                     pending.drop(index=idx, inplace=True)
                     pending.to_csv(PENDING_FILE, index=False, date_format='%Y-%m-%d')
-                    bookings = updated_bookings
+
                     st.success("Booking approved and added to calendar!")
                     st.rerun()
                 if col2.button(f"❌ Delete Booking {idx}"):
