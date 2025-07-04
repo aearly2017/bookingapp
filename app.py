@@ -184,11 +184,14 @@ elif page == "Admin - Approve Requests":
 elif page == "Gallery":
     st.header("🏡 Logan's Beach Photo Gallery")
 
-    drive_image_urls = [
-        "https://drive.google.com/uc?export=view&id=1SlI4qaQV4kNiiCwDy-BkRTk8eBYEhN5Q",
-        "https://drive.google.com/uc?export=view&id=1c6uTAKDSm8m-VlX-f09EEPu_14ul8Oas",
-        "https://drive.google.com/uc?export=view&id=1gt2bJBRre15VHZeuD1ZQ7OZrw6i8uHrt"
+    img_urls = [
+        "https://i.imgur.com/VoRaO4A.jpeg",
+        "https://i.imgur.com/jmDbprk.jpeg",
+        "https://i.imgur.com/KRqXiaO.jpeg",
+        "https://i.imgur.com/CWjrKET.jpeg",
+        "https://i.imgur.com/4KJOGcN.jpeg"
     ]
+
 
     slides = ''.join([
         f'<div class="swiper-slide"><img src="{url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"></div>'
