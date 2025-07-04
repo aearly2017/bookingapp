@@ -183,29 +183,42 @@ elif page == "Admin - Approve Requests":
 # ---------------- Gallery ---------------- #
 elif page == "Gallery":
     st.header("🏡 Logan's Beach Photo Gallery")
-    image_folder = "images"
-    try:
-        if os.path.isdir(image_folder):
-            image_files = [f for f in os.listdir(image_folder) if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))]
-            if image_files:
-                slides = ''.join([
-                    f'<div class="swiper-slide"><img src="/{image_folder}/{img}" style="width:100%;border-radius:10px;"></div>'
-                    for img in image_files
-                ])
-                html(f'''
-                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
-                <style>.swiper{{width:100%;height:500px;}}.swiper-slide img{{object-fit:cover;height:100%;}}</style>
-                <div class="swiper"><div class="swiper-wrapper">{slides}</div>
-                <div class="swiper-pagination"></div>
-                <div class="swiper-button-prev"></div><div class="swiper-button-next"></div></div>
-                <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-                <script>
-                new Swiper('.swiper', {{loop:true,pagination:{{el:'.swiper-pagination'}},navigation:{{nextEl:'.swiper-button-next',prevEl:'.swiper-button-prev'}}}});
-                </script>
-                ''', height=550)
-            else:
-                st.info("No images found in the gallery folder.")
-        else:
-            st.warning("Gallery folder not found.")
-    except Exception as e:
-        st.error("Failed to load gallery: " + str(e))
+
+    # Add your direct Google Drive image links here
+    image_urls = [
+        "https://drive.google.com/uc?export=view&id=1SlI4qaQV4kNiiCwDy-BkRTk8eBYEhN5Q",
+        "https://drive.google.com/uc?export=view&id=1c6uTAKDSm8m-VlX-f09EEPu_14ul8Oas",
+        "https://drive.google.com/uc?export=view&id=1gt2bJBRre15VHZeuD1ZQ7OZrw6i8uHrt"
+    ]
+
+    # Build Swiper slides from image URLs
+    slides = ''.join([
+        f'<div class="swiper-slide"><img src="{url}" style="width:100%; border-radius:10px;" /></div>'
+        for url in image_urls
+    ])
+
+    # Inject Swiper HTML and JS
+    html(f'''
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <style>
+        .swiper {{ width: 100%; height: 500px; }}
+        .swiper-slide img {{ object-fit: cover; height: 100%; }}
+    </style>
+    <div class="swiper">
+        <div class="swiper-wrapper">{slides}</div>
+        <div class="swiper-pagination"></div>
+        <div class="swiper-button-prev"></div>
+        <div class="swiper-button-next"></div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script>
+        new Swiper('.swiper', {{
+            loop: true,
+            pagination: {{ el: '.swiper-pagination' }},
+            navigation: {{
+                nextEl: '.swiper-button-next',
+                prevEl: '.swiper-button-prev'
+            }}
+        }});
+    </script>
+    ''', height=550)
