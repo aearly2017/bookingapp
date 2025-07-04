@@ -24,7 +24,7 @@ credentials = ServiceAccountCredentials.from_json_keyfile_dict(
 )
 client = gspread.authorize(credentials)
 
-sheet = client.open("LoganBookings")
+sheet = client.open_by_key("1YIu1al9lKhwKaGEmf6rjXb622tW9W5hhsAFLMi5k6Ak")
 bookings_sheet = sheet.worksheet("bookings")
 pending_sheet = sheet.worksheet("pending_bookings")
 blocked_sheet = sheet.worksheet("blocked_dates")
