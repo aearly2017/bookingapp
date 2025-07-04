@@ -186,9 +186,7 @@ elif page == "Gallery":
 
     # Add your direct Google Drive image links here
     image_urls = [
-    "https://drive.google.com/uc?export=view&id=1SlI4qaQV4kNiiCwDy-BkRTk8eBYEhN5Q",
     "https://drive.google.com/uc?export=view&id=1c6uTAKDSm8m-VlX-f09EEPu_14ul8Oas",
-    "https://drive.google.com/uc?export=view&id=1gt2bJBRre15VHZeuD1ZQ7OZrw6i8uHrt"
 ]
 
     # Build Swiper slides from image URLs
