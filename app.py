@@ -184,6 +184,7 @@ elif page == "Admin - Approve Requests":
 elif page == "Gallery":
     st.header("🏡 Logan's Beach Photo Gallery")
 
+    # Direct links to Imgur-hosted images
     img_urls = [
         "https://i.imgur.com/VoRaO4A.jpeg",
         "https://i.imgur.com/jmDbprk.jpeg",
@@ -192,24 +193,32 @@ elif page == "Gallery":
         "https://i.imgur.com/4KJOGcN.jpeg"
     ]
 
-
     slides = ''.join([
-        f'<div class="swiper-slide"><img src="{url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"></div>'
-        for url in drive_image_urls
+        f'<div class="swiper-slide"><img src="{url}" style="width:100%;border-radius:10px;"></div>'
+        for url in img_urls
     ])
 
     st.components.v1.html(f'''
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
-    <style>.swiper{{width:100%;height:500px;}}.swiper-slide img{{object-fit:cover;height:100%;}}</style>
-    <div class="swiper"><div class="swiper-wrapper">{slides}</div>
-    <div class="swiper-pagination"></div>
-    <div class="swiper-button-prev"></div><div class="swiper-button-next"></div></div>
-    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-    <script>
-    new Swiper('.swiper', {{
-      loop:true,
-      pagination:{{el:'.swiper-pagination'}},
-      navigation:{{nextEl:'.swiper-button-next',prevEl:'.swiper-button-prev'}}
-    }});
-    </script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+        <style>
+        .swiper{{width:100%;height:500px;}}
+        .swiper-slide img{{object-fit:cover;height:100%;}}
+        </style>
+        <div class="swiper">
+          <div class="swiper-wrapper">{slides}</div>
+          <div class="swiper-pagination"></div>
+          <div class="swiper-button-prev"></div>
+          <div class="swiper-button-next"></div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+        <script>
+        new Swiper('.swiper', {{
+            loop: true,
+            pagination: {{ el: '.swiper-pagination' }},
+            navigation: {{
+                nextEl: '.swiper-button-next',
+                prevEl: '.swiper-button-prev'
+            }}
+        }});
+        </script>
     ''', height=550)
